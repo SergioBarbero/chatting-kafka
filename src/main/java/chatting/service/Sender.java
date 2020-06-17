@@ -2,7 +2,6 @@ package chatting.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
@@ -10,8 +9,11 @@ import org.springframework.stereotype.Component;
 public class Sender {
     private static final Logger LOGGER = LoggerFactory.getLogger(Sender.class);
 
-    @Autowired
-    private KafkaTemplate<String, String> kafkaTemplate;
+    private final KafkaTemplate<String, String> kafkaTemplate;
+
+    public Sender(KafkaTemplate<String, String> kafkaTemplate) {
+        this.kafkaTemplate = kafkaTemplate;
+    }
 
     public void send(String topic, String data) {
         LOGGER.info("sending data='{}' to topic='{}'", data, topic);

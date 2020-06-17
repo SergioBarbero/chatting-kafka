@@ -115,7 +115,7 @@ function connect() {
   var socket = new SockJS('/chatting');
   stompClient = Stomp.over(socket);
   stompClient.connect({}, function (frame) {
-      stompClient.subscribe('/user/' + friendInfo[1].toLowerCase() +'/queue/chatting', function (greeting) {
+      stompClient.subscribe('/user/' + userInfo[1].toLowerCase() +'/queue/chatting', function (greeting) {
           console.log(greeting);
           var data = JSON.parse(greeting.body);
           console.log(data);
@@ -145,15 +145,15 @@ function saveFile(fileName) {
 
 function showFriendMessage(user, message) {
  var friendImgSrc = "img/" + friendInfo[2];
-    $('<div class="message loading new"><figure class="avatar"><img src=\''+friendImgSrc+'\'/></figure><span></span></div>').appendTo($('.mCSB_container'));
+ $('<div class="message loading new"><figure class="avatar"><img src=\''+friendImgSrc+'\'/></figure><span></span></div>').appendTo($('.mCSB_container'));
+  updateScrollbar();
+  setTimeout(function() {
+    $('.message.loading').remove();
+    $('<div class="message new"><figure class="avatar"><img src=\''+friendImgSrc+'\' /></figure>' + message + '</div>').appendTo($('.mCSB_container')).addClass('new');
+    setDate();
     updateScrollbar();
-    setTimeout(function() {
-      $('.message.loading').remove();
-      $('<div class="message new"><figure class="avatar"><img src=\''+friendImgSrc+'\' /></figure>' + message + '</div>').appendTo($('.mCSB_container')).addClass('new');
-      setDate();
-      updateScrollbar();
-      i++;
-    }, 1000 + (Math.random() * 20) * 100);
+    i++;
+  }, 1000);
 }
 
 function showOwnMessage(user, message) {
@@ -177,6 +177,6 @@ function showMessage2(user, fileName, rawData) {
       setDate();
       updateScrollbar();
       i++;
-      }, 1000 + (Math.random() * 20) * 100);
+      }, 1000);
   }
 }
