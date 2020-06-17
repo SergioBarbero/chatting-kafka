@@ -63,11 +63,9 @@ public class ChattingKafkaIT {
         //kafka.addExposedPort(9092);
         stompClient.setMessageConverter(new MappingJackson2MessageConverter());
 
-        StompSessionHandler sessionHandler = new CustomStompSessionHandler();
-
         String url = "ws://localhost:" + port + "/chatting";
-        StompSession steveSession = stompClient.connect(url, sessionHandler).get();
-        StompSession breadSession = stompClient.connect(url, sessionHandler).get();
+        StompSession steveSession = stompClient.connect(url, new StompSessionHandlerAdapter() {}).get();
+        StompSession breadSession = stompClient.connect(url, new StompSessionHandlerAdapter() {}).get();
 
         steveSession.subscribe("/user/steve/queue/chatting", steveChatClient.getStompFrameHandler());
         breadSession.subscribe("/user/bread/queue/chatting", breadChatClient.getStompFrameHandler());
@@ -81,28 +79,5 @@ public class ChattingKafkaIT {
 
         assertThat(breadChatClient.getSizeOfReceivedElements()).isEqualTo(0);
         assertThat(breadChatClient.getSizeOfReceivedElements()).isEqualTo(0);
-    }
-
-    public static class CustomStompSessionHandler extends StompSessionHandlerAdapter {
-
-        private static final Logger logger = LoggerFactory.getLogger(CustomStompSessionHandler.class);
-
-        @Override
-        public void afterConnected(StompSession session, StompHeaders connectedHeaders) {
-            logger.info("New session established : " + session.getSessionId());
-        }
-
-        @Override
-        public void handleFrame(StompHeaders headers, Object payload) {
-            logger.info(payload.toString());
-            ChattingMessage msg = (ChattingMessage) payload;
-            logger.info("Received : " + msg.getMessage() + " from : " + msg.getFrom());
-        }
-
-        @Override
-        public void handleException(StompSession session, StompCommand command, StompHeaders headers,
-                                    byte[] payload, Throwable exception) {
-            logger.error("Got an exception", exception);
-        }
     }
 }
