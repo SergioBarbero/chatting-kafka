@@ -16,7 +16,7 @@ public class StompChatClient implements AfterEachCallback {
     private final BlockingQueue<String> queue = new LinkedBlockingDeque<>();
     private final StompFrameHandler stompFrameHandler = new ChatFrameHandler();
 
-    class ChatFrameHandler implements StompFrameHandler {
+    private class ChatFrameHandler implements StompFrameHandler {
         private final Logger logger = LoggerFactory.getLogger(ChatFrameHandler.class);
 
         @Override

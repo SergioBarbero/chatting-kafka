@@ -25,7 +25,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingDeque;
 
 import static java.util.Arrays.asList;
-import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT;
 
@@ -52,8 +51,7 @@ public class ChattingKafkaIT {
     @RegisterExtension
     StompChatClient pepitoChatClient = new StompChatClient();
 
-    private WebSocketStompClient stompClient = new WebSocketStompClient(new SockJsClient(
-            asList(new WebSocketTransport(new StandardWebSocketClient()))));
+    private final WebSocketStompClient stompClient = getWebSocketStompClient();
 
     @LocalServerPort
     private int port;
@@ -61,7 +59,6 @@ public class ChattingKafkaIT {
     @Test
     public void shouldSendMessageToFriend() throws ExecutionException, InterruptedException {
         //kafka.addExposedPort(9092);
-        stompClient.setMessageConverter(new MappingJackson2MessageConverter());
 
         String url = "ws://localhost:" + port + "/chatting";
         StompSession steveSession = stompClient.connect(url, new StompSessionHandlerAdapter() {}).get();
@@ -79,5 +76,12 @@ public class ChattingKafkaIT {
 
         assertThat(breadChatClient.getSizeOfReceivedElements()).isEqualTo(0);
         assertThat(breadChatClient.getSizeOfReceivedElements()).isEqualTo(0);
+    }
+
+    private static WebSocketStompClient getWebSocketStompClient() {
+        WebSocketStompClient stompClient = new WebSocketStompClient(new SockJsClient(
+                asList(new WebSocketTransport(new StandardWebSocketClient()))));
+        stompClient.setMessageConverter(new MappingJackson2MessageConverter());
+        return stompClient;
     }
 }
