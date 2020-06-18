@@ -119,11 +119,11 @@ function connect() {
           console.log(greeting);
           var data = JSON.parse(greeting.body);
           console.log(data);
-          if(data.message != null){
-            showFriendMessage(data.from, data.message);
-          } else {
-            localStorage.setItem(data.fileName, data.rawData);
-            showMessage2(data.from, data.fileName, data.rawData);
+          if (data.message == null) {
+              localStorage.setItem(data.fileName, data.rawData);
+              showMessage2(data.from, data.fileName, data.rawData);
+          } else if (data.from == friendInfo[1].toLowerCase()) {
+              showFriendMessage(data.from, data.message);
           }
        });
   });
