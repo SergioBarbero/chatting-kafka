@@ -39,8 +39,8 @@ public class StompChatClient implements AfterEachCallback {
         return stompFrameHandler;
     }
 
-    public ReceivedMessage poll(int seconds) throws InterruptedException {
-        return queue.poll(seconds, TimeUnit.SECONDS);
+    public ReceivedMessage poll() throws InterruptedException {
+        return queue.poll(3, TimeUnit.SECONDS);
     }
 
     public int getSizeOfReceivedElements() {

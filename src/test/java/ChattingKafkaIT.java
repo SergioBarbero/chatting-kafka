@@ -5,25 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateSerializer;
 import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateTimeSerializer;
-import org.apache.kafka.clients.consumer.ConsumerRecords;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.clients.producer.KafkaProducer;
-import org.apache.kafka.clients.producer.Producer;
-import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.serialization.StringDeserializer;
-import org.apache.kafka.common.serialization.StringSerializer;
-import org.junit.Assert;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.web.server.LocalServerPort;
-import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
-import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.test.EmbeddedKafkaBroker;
 import org.springframework.kafka.test.context.EmbeddedKafka;
-import org.springframework.kafka.test.utils.KafkaTestUtils;
 import org.springframework.messaging.converter.MappingJackson2MessageConverter;
 import org.springframework.messaging.simp.stomp.*;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
@@ -36,14 +24,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Properties;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.IntStream;
 
 import static java.util.Arrays.asList;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
@@ -60,6 +41,9 @@ import static org.springframework.boot.test.context.SpringBootTest.WebEnvironmen
 @EmbeddedKafka(partitions = 1, brokerProperties = {"listeners=PLAINTEXT://localhost:9092", "port=9092"})
 public class ChattingKafkaIT {
 
+    @LocalServerPort
+    private int port;
+
     @Autowired
     private EmbeddedKafkaBroker embeddedKafkaBroker;
 
@@ -74,12 +58,9 @@ public class ChattingKafkaIT {
 
     private final WebSocketStompClient stompClient = getWebSocketStompClient();
 
-    @LocalServerPort
-    private int port;
-
     @Test
     public void shouldSendMessageToFriend() throws ExecutionException, InterruptedException {
-        String url = "ws://localhost:" + port + "/chatting";
+        String url = getUrl();
         StompSession steveSession = stompClient.connect(url, new StompSessionHandlerAdapter() {}).get();
         StompSession breadSession = stompClient.connect(url, new StompSessionHandlerAdapter() {}).get();
 
@@ -88,16 +69,65 @@ public class ChattingKafkaIT {
 
         steveSession.send("/app/message", new ChattingMessage("steve", "bread", "Hey Bread"));
 
-        ReceivedMessage actual = breadChatClient.poll(3);
+        Instant sentMessage1At = Instant.now();
+        assertMessage(breadChatClient.poll(), "Hey Bread", "steve", sentMessage1At);
 
+        assertThat(breadChatClient.getSizeOfReceivedElements()).isEqualTo(0);
+        assertThat(pepitoChatClient.getSizeOfReceivedElements()).isEqualTo(0);
+    }
+
+    @Test
+    public void shouldSendMessagesToFriend() throws ExecutionException, InterruptedException {
+        // given
+        String url = getUrl();
+        StompSession steveSession = stompClient.connect(url, new StompSessionHandlerAdapter() {}).get();
+        StompSession breadSession = stompClient.connect(url, new StompSessionHandlerAdapter() {}).get();
+
+        // Each person subscribes to each own inbox
+        // when
+        steveSession.subscribe("/user/steve/queue/chatting", steveChatClient.getStompFrameHandler());
+        breadSession.subscribe("/user/bread/queue/chatting", breadChatClient.getStompFrameHandler());
+
+        Instant sentMessage1At = Instant.now();
+        steveSession.send("/app/message", new ChattingMessage("steve", "bread", "Hey Bread"));
+        Thread.sleep(20); // Adding minimum delay between messages
+
+        Instant sentMessage2At = Instant.now();
+        steveSession.send("/app/message", new ChattingMessage("steve", "bread", "How are you doing?"));
+        Thread.sleep(20);
+
+        Instant sentMessage3At = Instant.now();
+        breadSession.send("/app/message", new ChattingMessage("bread", "steve", "My girlfriend has left me"));
+        Thread.sleep(20);
+
+        Instant sentMessage4At = Instant.now();
+        breadSession.send("/app/message", new ChattingMessage("bread", "steve", "I'm broken"));
+        Thread.sleep(20);
+
+        Instant sentMessage5At = Instant.now();
+        steveSession.send("/app/message", new ChattingMessage("steve", "bread", "I'm so sorry mate"));
+
+        // then
+        assertMessage(steveChatClient.poll(), "My girlfriend has left me", "bread", sentMessage1At);
+        assertMessage(steveChatClient.poll(), "I'm broken", "bread", sentMessage2At);
+        assertMessage(breadChatClient.poll(), "Hey Bread", "steve", sentMessage3At);
+        assertMessage(breadChatClient.poll(), "How are you doing?", "steve", sentMessage4At);
+        assertMessage(breadChatClient.poll(), "I'm so sorry mate", "steve", sentMessage5At);
+        assertThat(pepitoChatClient.getSizeOfReceivedElements()).isEqualTo(0);
+    }
+
+    private void assertMessage(ReceivedMessage actual, String expectedMessage, String expectedFrom, Instant sentAt) {
         assertThat(actual).isNotNull();
-        assertThat(actual.getFrom()).isEqualTo("steve");
-        assertThat(actual.getMessage()).isEqualTo("Hey Bread");
-        assertThat(actual.getSentAt()).isAfter(Instant.now().minus(1, ChronoUnit.SECONDS));
-        assertThat(actual.getSentAt()).isBefore(Instant.now());
+        assertThat(actual.getFrom()).isEqualTo(expectedFrom);
+        assertThat(actual.getMessage()).isEqualTo(expectedMessage);
 
-        assertThat(breadChatClient.getSizeOfReceivedElements()).isEqualTo(0);
-        assertThat(breadChatClient.getSizeOfReceivedElements()).isEqualTo(0);
+        // Message should be have a timestamp in between these thresholds
+        assertThat(actual.getSentAt()).isAfter(sentAt.minus(500, ChronoUnit.MILLIS));
+        assertThat(actual.getSentAt()).isBefore(sentAt.plus(500, ChronoUnit.MILLIS));
+    }
+
+    private String getUrl() {
+        return "ws://localhost:" + port + "/chatting";
     }
 
     private static WebSocketStompClient getWebSocketStompClient() {
