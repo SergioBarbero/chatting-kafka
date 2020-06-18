@@ -1,5 +1,7 @@
 package chatting.model;
 
+import java.util.Arrays;
+
 public class ChattingMessage {
 
     private String message;
@@ -70,5 +72,16 @@ public class ChattingMessage {
 
     public void setTo(String to) {
         this.to = to;
+    }
+
+    @Override
+    public String toString() {
+        return "ChattingMessage{" +
+                "message='" + message + '\'' +
+                ", from='" + from + '\'' +
+                ", to='" + to + '\'' +
+                ", fileName='" + fileName + '\'' +
+                ", rawData=" + Arrays.toString(rawData) +
+                '}';
     }
 }
