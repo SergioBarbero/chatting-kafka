@@ -2,7 +2,7 @@ package chatting.controller;
 
 import chatting.model.ChattingMessage;
 import chatting.service.Sender;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -22,7 +22,8 @@ public class ChattingController {
 
     @MessageMapping("/message")
     public void sendMessage(ChattingMessage message) throws Exception {
-        String data = message.getMessage() + "|" + message.getFrom() + "|" + message.getTo();
+        ObjectMapper mapper = new ObjectMapper();
+        String data = mapper.writeValueAsString(message);
         sender.send(BOOT_TOPIC, data);
     }
 
