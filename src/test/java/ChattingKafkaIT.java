@@ -1,5 +1,10 @@
 import chatting.Application;
 import chatting.model.ChattingMessage;
+import chatting.model.ReceivedMessage;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateSerializer;
+import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateTimeSerializer;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
@@ -26,6 +31,11 @@ import org.springframework.web.socket.messaging.WebSocketStompClient;
 import org.springframework.web.socket.sockjs.client.SockJsClient;
 import org.springframework.web.socket.sockjs.client.WebSocketTransport;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -47,12 +57,7 @@ import static org.springframework.boot.test.context.SpringBootTest.WebEnvironmen
  * These three guys message each other. Every guy has each own queue, where they receive the messages from the others.
  */
 @SpringBootTest(webEnvironment = RANDOM_PORT, classes = Application.class)
-@EmbeddedKafka(
-        partitions = 1,
-        controlledShutdown = false,
-        brokerProperties = {
-                "listeners=PLAINTEXT://localhost:9092",
-                "port=9092"})
+@EmbeddedKafka(partitions = 1, brokerProperties = {"listeners=PLAINTEXT://localhost:9092", "port=9092"})
 public class ChattingKafkaIT {
 
     @Autowired
@@ -83,19 +88,33 @@ public class ChattingKafkaIT {
 
         steveSession.send("/app/message", new ChattingMessage("steve", "bread", "Hey Bread"));
 
-        String actual = breadChatClient.poll(2);
+        ReceivedMessage actual = breadChatClient.poll(3);
 
         assertThat(actual).isNotNull();
-        assertThat(actual).isEqualTo("ChattingMessage{message='Hey Bread', from='steve', to='bread', fileName='null', rawData=null}");
+        assertThat(actual.getFrom()).isEqualTo("steve");
+        assertThat(actual.getMessage()).isEqualTo("Hey Bread");
+        assertThat(actual.getSentAt()).isAfter(Instant.now().minus(1, ChronoUnit.SECONDS));
+        assertThat(actual.getSentAt()).isBefore(Instant.now());
 
         assertThat(breadChatClient.getSizeOfReceivedElements()).isEqualTo(0);
         assertThat(breadChatClient.getSizeOfReceivedElements()).isEqualTo(0);
     }
 
     private static WebSocketStompClient getWebSocketStompClient() {
+        MappingJackson2MessageConverter converter = new MappingJackson2MessageConverter();
+        ObjectMapper objectMapper = new ObjectMapper();
+        JavaTimeModule timeModule = new JavaTimeModule();
+        // For the deserializer to deserialize to Timestamp when needed
+        timeModule.addSerializer(LocalDate.class,
+                new LocalDateSerializer(DateTimeFormatter.ISO_LOCAL_DATE));
+        timeModule.addSerializer(LocalDateTime.class,
+                new LocalDateTimeSerializer(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        objectMapper.registerModule(timeModule);
+
         WebSocketStompClient stompClient = new WebSocketStompClient(new SockJsClient(
                 asList(new WebSocketTransport(new StandardWebSocketClient()))));
-        stompClient.setMessageConverter(new MappingJackson2MessageConverter());
+        stompClient.setMessageConverter(converter);
+        converter.setObjectMapper(objectMapper);
         return stompClient;
     }
 }
