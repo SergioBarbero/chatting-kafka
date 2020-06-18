@@ -1,28 +1,39 @@
 import chatting.Application;
 import chatting.model.ChattingMessage;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.Producer;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.serialization.StringDeserializer;
+import org.apache.kafka.common.serialization.StringSerializer;
+import org.junit.Assert;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.web.server.LocalServerPort;
+import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
+import org.springframework.kafka.core.DefaultKafkaProducerFactory;
+import org.springframework.kafka.test.EmbeddedKafkaBroker;
+import org.springframework.kafka.test.context.EmbeddedKafka;
+import org.springframework.kafka.test.utils.KafkaTestUtils;
 import org.springframework.messaging.converter.MappingJackson2MessageConverter;
 import org.springframework.messaging.simp.stomp.*;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 import org.springframework.web.socket.messaging.WebSocketStompClient;
 import org.springframework.web.socket.sockjs.client.SockJsClient;
-import org.springframework.web.socket.sockjs.client.Transport;
 import org.springframework.web.socket.sockjs.client.WebSocketTransport;
-import org.testcontainers.containers.KafkaContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
-import java.lang.reflect.Type;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.BlockingQueue;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Properties;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
 
 import static java.util.Arrays.asList;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
@@ -36,11 +47,16 @@ import static org.springframework.boot.test.context.SpringBootTest.WebEnvironmen
  * These three guys message each other. Every guy has each own queue, where they receive the messages from the others.
  */
 @SpringBootTest(webEnvironment = RANDOM_PORT, classes = Application.class)
-@Testcontainers
+@EmbeddedKafka(
+        partitions = 1,
+        controlledShutdown = false,
+        brokerProperties = {
+                "listeners=PLAINTEXT://localhost:9092",
+                "port=9092"})
 public class ChattingKafkaIT {
 
-    //@Container
-    //public KafkaContainer kafka = new KafkaContainer();
+    @Autowired
+    private EmbeddedKafkaBroker embeddedKafkaBroker;
 
     @RegisterExtension
     StompChatClient steveChatClient = new StompChatClient();
@@ -58,8 +74,6 @@ public class ChattingKafkaIT {
 
     @Test
     public void shouldSendMessageToFriend() throws ExecutionException, InterruptedException {
-        //kafka.addExposedPort(9092);
-
         String url = "ws://localhost:" + port + "/chatting";
         StompSession steveSession = stompClient.connect(url, new StompSessionHandlerAdapter() {}).get();
         StompSession breadSession = stompClient.connect(url, new StompSessionHandlerAdapter() {}).get();
