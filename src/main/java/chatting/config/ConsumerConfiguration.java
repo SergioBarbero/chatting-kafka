@@ -15,8 +15,6 @@ import java.util.Map;
 @Configuration
 public class ConsumerConfiguration {
 
-    private static final String KAFKA_BROKER = "localhost:9092";
-
     @Value("${spring.kafka.bootstrap.servers}")
     private String kafkaPort;
 

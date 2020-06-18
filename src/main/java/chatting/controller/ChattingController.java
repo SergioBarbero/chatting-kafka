@@ -5,7 +5,6 @@ import chatting.service.Sender;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.SendTo;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
 
@@ -16,7 +15,7 @@ public class ChattingController {
 
     private final static String BOOT_TOPIC = "chatting";
 
-    public ChattingController(Sender sender, SimpMessagingTemplate template) {
+    public ChattingController(Sender sender) {
         this.sender = sender;
     }
 
